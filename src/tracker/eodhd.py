@@ -3,12 +3,13 @@
 # It fetches, analyses and saves historical and present data for
 # one's portfolio.
 
-import os
+from os import listdir, environ, path
 import requests
-import json
 import pandas
 from typing import List
 from dotenv import load_dotenv
+
+from database import Database
 
 
 # This class uses the EODHD APIs found at https://eodhistoricaldata.com
@@ -16,13 +17,15 @@ from dotenv import load_dotenv
 class EODHD:
     def __init__(self):
         load_dotenv() # Reads .env file
-        self.api_token = os.environ.get("API_TOKEN")
-        self.data_directory = os.environ.get("DATA_DIRECTORY")
+        self.api_token = environ.get("API_TOKEN")
+        self.data_directory = environ.get("DATA_DIRECTORY") + "\\tickers\\"
         self.data = {}
+        
+        self.database = database = Database()
 
 ##-------------------------------- Get Data --------------------------------##
 
-    def get_historical_data(self, ticker: str, period: str, _from: str, to: str) -> List[int, str]:
+    def get_historical_data(self, ticker: str, period: str, _from: str, to: str) -> pandas.DataFrame:
         """Fetches historical data for the given ticker.
         params:
             ticker: consists of two parts: {SYMBOL_NAME}.{EXCHANGE_ID},
@@ -52,7 +55,9 @@ class EODHD:
         for key, value in request_data.items():
             url += ("".join(["&", key, "=", value]))
         request = requests.get(url)
-        return [request.status_code, request.text]
+        if request.status_code == 200:
+            return pandas.read_json(request.text)
+        else: raise Exception(f"Something went wrong: Status Code {request.status_code}")
         
 
 ##---------------------------- CSV Manipulation ----------------------------##
@@ -63,14 +68,20 @@ class EODHD:
         for file in files:
             if file.endswith('.csv'):
                 filename = file[:-4] # Filename without '.csv'
-                self.data[filename] = pandas.read_csv(self.data_directory + "\\" +
-                file)
+                self.data[filename] = pandas.read_csv(self.data_directory + file)
 
-    def save_to_csv(self):
+    def write_csv(self):
         """Writes data to CSV"""
         for ticker in self.data:
-            ticker.to_csv()
+            ## Create a new file for each ticker symbol
+            file_path = self.data_directory + ticker + ".csv"
+            
+            if not path.exists(file_path):
+                self.data[ticker].to_csv(file_path, index=False)
+
 
 if __name__ == '__main__':
     eod = EODHD()
-    eod.get_historical_data("MCD.US", "d", "2015-10-10", "2021-10-10")
+    eod.read_csv()
+    eod.write_csv()
+    #eod.get_historical_data("MCD.US", "d", "2015-10-10", "2021-10-10")
