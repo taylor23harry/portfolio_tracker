@@ -3,10 +3,11 @@
 # It fetches, analyses and saves historical and present data for
 # one's portfolio.
 
-from os import listdir, environ, path
-import requests
-import pandas
+from os import environ, listdir, path
 from typing import List
+
+import pandas
+import requests
 from dotenv import load_dotenv
 
 from database import Database
@@ -60,6 +61,7 @@ class EODHD:
         else: raise Exception(f"Something went wrong: Status Code {request.status_code}")
         
 
+# !TODO Migrate from CSV to pSQL.
 ##---------------------------- CSV Manipulation ----------------------------##
 
     def read_csv(self):
@@ -79,6 +81,18 @@ class EODHD:
             if not path.exists(file_path):
                 self.data[ticker].to_csv(file_path, index=False)
 
+##---------------------------- DB Manipulation -----------------------------##
+
+    def read_db(self):
+        """Reads historical data from DB."""
+    
+    def translate_to_db(self, ticker: str) -> str:
+        """Translates the ticker from the format given by the API response into DB usable format"""
+        return ticker.replace(".", "_").lower()
+
+    def translate_to_api(self, ticker: str) -> str:
+        """Translates the ticker from DB usable format to the format needed by API server."""
+        return ticker.replace("-", ".").upper()
 
 if __name__ == '__main__':
     eod = EODHD()
