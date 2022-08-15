@@ -15,5 +15,7 @@ which should be placed in the ./src folder.
 
 API_TOKEN = '' # The API key you get from https://eodhistoricaldata.com/
 DB_NAME = '' # The name of your PostgreSQL database
+DB_PASSWORD = '' # DB_USER password
+DB_USER = '' # Database user
 
 DATABASE_CONNECTION_URI = "postgresql+psycopg2://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE_NAME}" # The URI used to connect to the postgres server.
