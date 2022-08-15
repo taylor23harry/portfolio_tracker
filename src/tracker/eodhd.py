@@ -81,18 +81,6 @@ class EODHD:
             if not path.exists(file_path):
                 self.data[ticker].to_csv(file_path, index=False)
 
-##---------------------------- DB Manipulation -----------------------------##
-
-    def read_db(self):
-        """Reads historical data from DB."""
-    
-    def translate_to_db(self, ticker: str) -> str:
-        """Translates the ticker from the format given by the API response into DB usable format"""
-        return ticker.replace(".", "_").lower()
-
-    def translate_to_api(self, ticker: str) -> str:
-        """Translates the ticker from DB usable format to the format needed by API server."""
-        return ticker.replace("-", ".").upper()
 
 if __name__ == '__main__':
     eod = EODHD()
