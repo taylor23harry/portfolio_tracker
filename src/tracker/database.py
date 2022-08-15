@@ -14,12 +14,17 @@ from sqlalchemy import create_engine
 class Database:
     def __init__(self):
         load_dotenv()
+        self.connect_db()
 
+    def connect_db(self):
+        """Establishes a connection to he PostgreSQL server"""
         db_uri = environ.get("DATABASE_CONNECTION_URI")
         self.engine = create_engine(db_uri, echo=True)
         self.conn = psycopg2.connect(
-            f'dbname={environ.get("DB_NAME")} user={environ.get("DB_USER")}')
+            f'dbname={environ.get("DB_NAME")} user={environ.get("DB_USER")} password={environ.get("DB_PASSWORD")}')
         self.cur = self.conn.cursor()
+
+
 
     def add_security(self, ticker: str, type: str, amount: int or float):
         """Add security to database.
@@ -35,7 +40,7 @@ class Database:
 
         # ------------------- Parameter manipulation ------------------ #
 
-        ticker = ticker.upper()
+        ticker = self.translate_to_db(ticker.upper())
         type = type.lower()
 
         # --- Check whether the security is already in the database --- #
@@ -45,15 +50,16 @@ class Database:
         # ------------------- Database Manipulation ------------------- #
 
         if already_owned is None:
-            sql = f"""INSERT INTO holdings.holdings
+            sql = f"""INSERT INTO holdings
             (ticker, type, amount)
             VALUES ('{ticker}', '{type}', {amount});"""
             self.cur.execute(sql)
         else:
             new_amount = already_owned + amount
 
-            sql = f"UPDATE holdings.holdings SET amount = {new_amount} WHERE ticker = '{ticker}';"
+            sql = f"UPDATE holdings SET amount = {new_amount} WHERE ticker = '{ticker}';"
             self.cur.execute(sql)
+
         self.conn.commit()
 
     def remove_security(self, ticker: str, amount: int or float):
@@ -95,9 +101,13 @@ class Database:
         """Returns the quantity of a given security in DB.
         params:
             ticker: consists of two parts: {SYMBOL_NAME}_{EXCHANGE_ID}"""
-
-        self.cur.execute(
-            f"SELECT amount FROM holdings.holdings WHERE ticker = '{ticker}';")
+        ticker = self.translate_to_db(ticker)
+        try:
+            self.cur.execute(
+                f"SELECT amount FROM holdings WHERE ticker = '{ticker}';")
+        except psycopg2.errors.UndefinedTable:
+            # Table does not exist
+            self.create_holdings_table()
         try:
             return self.cur.fetchone()[0]
         except TypeError:
@@ -120,8 +130,7 @@ class Database:
                 columns_sql += column + ", "
             else:
                 columns_sql += column
-
-        ticker = ticker_to_db(ticker)
+        ticker = self.translate_to_db(ticker)
         sql = f"SELECT {columns_sql} FROM historical.{ticker} BETWEEN {start} AND {stop}"
         data = self.cur.execute(sql)
 
@@ -132,15 +141,16 @@ class Database:
         -- Params --
             ticker: consists of: {SYMBOL_NAME}_{EXCHANGE_ID}
             data: data to be written to db."""
+        ticker = self.translate_to_db(ticker)
         try:
-            data.to_sql(ticker, self.engine, holdings,
-            if_exists=: 'fail')
+            data.to_sql(ticker, self.engine, 'historical',
+                        if_exists='fail')
         except ValueError("Table already exists."):
             pass
 
     def create_ticker_table(self, ticker):
         """Creates a DB table for the given ticker."""
-
+        ticker = self.translate_to_db(ticker)
         sql = f"""CREATE TABLE historical.{ticker} (
             date DATE PRIMARY KEY,
             open FLOAT NOT NULL,
@@ -149,10 +159,23 @@ class Database:
             close FLOAT NOT NULL,
             adj_close FLOAT NOT NULL,
             volume INT NOT NULL);"""
-        response = self.cur.execute(sql)
+        self.cur.execute(sql)
 
         self.conn.commit()
 
+    def create_holdings_table(self):
+        """Creates a DB table to store what securities you own."""
+        sql = f"CREATE TABLE holdings(ticker VARCHAR(8) PRIMARY KEY, type VARCHAR(7) NOT NULL, amount INT NOT NULL);"
+        self.cur.execute(sql)
+        self.conn.commit()
+
+    def translate_to_db(self, ticker: str) -> str:
+        """Translates the ticker from the format given by the API response into DB usable format"""
+        return ticker.replace(".", "_").lower()
+
+    def translate_to_api(self, ticker: str) -> str:
+        """Translates the ticker from DB usable format to the format needed by API server."""
+        return ticker.replace("-", ".").upper()
 
 if __name__ == '__main__':
     db = Database()
